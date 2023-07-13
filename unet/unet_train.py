@@ -1,12 +1,14 @@
-from unet import UNet
 import torch
 from torch.utils.data import DataLoader
 import torch.optim
-from unet_utils import MultiCompose, ToTensor, EnforceFloat
-from coco_dataset import COCODataset
 import os
 import cv2
 import numpy as np
+
+from utils.transform_utils import MultiCompose, ToTensor, EnforceFloat
+from utils.losses import DiceLoss
+from coco_dataset import COCODataset
+from unet import UNet
 
 
 def train():
@@ -81,18 +83,18 @@ def train():
 
             prediction = model(img)
 
-            # For visualizaiton purposes
-            for batch in range(img.shape[0]):
-                img_t = img[batch,:,:,:].cpu().numpy()
-                img_t = img_t.transpose([1,2,0])
-                gt_t = gt[batch,:,:,:].cpu().numpy()
-                gt_t = gt_t.transpose([1,2,0])
-                pred_t = prediction[batch,:,:,:].detach().cpu().numpy()
-                pred_t = pred_t.transpose([1,2,0])
-                cv2.imshow('Image', img_t)
-                cv2.imshow('GT', gt_t)
-                cv2.imshow('Pred', pred_t)
-                cv2.waitKey(0)
+            # # For visualizaiton purposes
+            # for batch in range(img.shape[0]):
+            #     img_t = img[batch,:,:,:].cpu().numpy()
+            #     img_t = img_t.transpose([1,2,0])
+            #     gt_t = gt[batch,:,:,:].cpu().numpy()
+            #     gt_t = gt_t.transpose([1,2,0])
+            #     pred_t = prediction[batch,:,:,:].detach().cpu().numpy()
+            #     pred_t = pred_t.transpose([1,2,0])
+            #     cv2.imshow('Image', img_t)
+            #     cv2.imshow('GT', gt_t)
+            #     cv2.imshow('Pred', pred_t)
+            #     cv2.waitKey(0)
 
             loss = loss_fn(prediction, gt)
             print(f"Training loss: {loss.item()}")
