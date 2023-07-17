@@ -1,5 +1,6 @@
 from torch import nn
-from geometric_utils import f_score
+from . import geometric_utils
+import re
 
 class DiceLoss(nn.Module):
     """
@@ -11,12 +12,19 @@ class DiceLoss(nn.Module):
     Dice Loss = 1 - F Score
     """
 
-    def __init__(self, threshold):
-        super(DiceLoss, self).__init__()
-        self.threshold = threshold
+    def __init__(self,name=None):
+        super().__init__()
+        self._name = name
+        self.activation = nn.Softmax2d()
+
+    @property
+    def __name__(self):
+        if self._name is None:
+            name = self.__class__.__name__
+            s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+            return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+        else:
+            return self._name
 
     def forward(self, prediction, target):
-        return 1 - f_score(prediction, target, self.threshold)
-
-    def __call__(self, prediction, target):
-        return 1 - f_score(prediction, target, self.threshold)
+        return 1 - geometric_utils.dice_coeff(prediction, target)

@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 
 class ConvBlock(nn.Module):
@@ -16,24 +17,17 @@ class ConvBlock(nn.Module):
     """
     def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.conv1 = nn.Conv2d(
-            in_channels=in_channels, out_channels=out_channels,
-            kernel_size=3, padding=1
+        self.conv_block = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
         )
-        self.batch_norm1 = nn.BatchNorm2d(out_channels)
-        self.conv2 = nn.Conv2d(
-            in_channels=out_channels, out_channels=out_channels,
-            kernel_size=3, padding=1
-        )
-        self.batch_norm2 = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU()
 
     def forward(self, input):
-        x = self.conv1(input)
-        x = self.relu(self.batch_norm1(x))
-
-        x = self.conv2(x)
-        x = self.relu (self.batch_norm2(x))
+        x = self.conv_block(input)
         return x
 
 
@@ -53,7 +47,7 @@ class EncoderBlock(nn.Module):
         self.conv_block = ConvBlock(
             in_channels=in_channels, out_channels=out_channels
         )
-        self.pool = nn.MaxPool2d(2,2)
+        self.pool = nn.MaxPool2d(2)
 
     def forward(self, input):
         no_pool = self.conv_block(input)
@@ -80,6 +74,18 @@ class DecoderBlock(nn.Module):
     
     def forward(self, input, skip):
         x = self.up(input)
+
+        """
+        Ensure skip connections have same shape
+        as the upsampled input to concatenate
+        together
+        """
+        diffY = skip.size()[2] - x.size()[2]
+        diffX = skip.size()[3] - x.size()[3]
+
+        x = F.pad(x, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+
         x = torch.cat([x, skip], axis=1)
         x = self.conv_block(x)
         return x
@@ -124,12 +130,12 @@ class UNet(nn.Module):
         """
         Decode (with skip connections, the no_pool objects)
         """
-        decode = self.decode4(latent, no_pool4)
-        decode = self.decode3(decode, no_pool3)
-        decode = self.decode2(decode, no_pool2)
-        decode = self.decode1(decode, no_pool1)
+        decode1 = self.decode4(latent, no_pool4)
+        decode2 = self.decode3(decode1, no_pool3)
+        decode3 = self.decode2(decode2, no_pool2)
+        decode4 = self.decode1(decode3, no_pool1)
 
-        output = self.output(decode)
+        output = self.output(decode4)
 
         return output
 

@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.ndimage import label
 import torch
+from torch import Tensor
 
 
 def _threshold(x, threshold=None):
@@ -151,8 +152,9 @@ def iou(pr, gt, threshold=0.3):
     for b in range(batch_size):
         for c in range(num_channels):
             # Threshold pr matrix and set all values in gt matrix between 0 and 1 (exlcusive) to 1
-            pr_matrix = threshold(pr[b,c,:,:], threshold)
-            gt_matrix = gt
+            pr_matrix = pr[b,c,:,:]
+            pr_matrix = _threshold(pr_matrix, threshold)
+            gt_matrix = gt[b,c,:,:]
             gt_matrix[(gt_matrix>0)&(gt_matrix<1)] = 1
 
             intersection = torch.sum(gt_matrix*pr_matrix) # Count elements of 1
@@ -164,32 +166,30 @@ def iou(pr, gt, threshold=0.3):
 
             iou += intersection / union
 
-    return iou
-
-def f_score(pr, gt, threshold):
-    """
-    Calculates F-Score between ground truth and prediction
-
-    F-Score = TP / TP + 1/2(FP + FN)
-
-    @param pr (torch.Tensor)       Predicted tensor
-    @param gt (torch.Tensor)       Ground truth tensor
-    @param threshold (float)       Threshold for pr binarization
-    """
-
-    # Threshold pr matrix and set all values in gt matrix between 0 and 1 (exlcusive) to 1
-    pr_matrix = _threshold(pr, threshold)
-    gt_matrix = gt
-    gt_matrix[(gt_matrix>0)&(gt_matrix<1)] = 1
-
-    tp = torch.sum(gt_matrix * pr_matrix)
-    fp = torch.sum(pr_matrix) - tp
-    fn = torch.sum(gt_matrix) - tp
-
-    score_denom = tp + 1/2 * (fp + fn)
-    if score_denom == 0:
+    if iou_N == 0:
         return 0
     
-    score = tp/score_denom
-    return score
+    return iou/iou_N
 
+
+def dice_coeff(input: Tensor, target: Tensor, epsilon: float = 1e-6):
+    """
+    Function to determine dice coefficient between input and target
+
+    @param input        The input tensor to determine dice score of
+    @param target       Target (ground truth) tensor used to determine dice score
+
+    @returns            Dice Coefficient/Score (float)
+    """
+    # Average of Dice coefficient for all batches, or for a single mask
+    assert input.size() == target.size()
+    assert input.dim() == 3
+
+    sum_dim = (-1, -2)
+
+    inter = 2 * (input * target).sum(dim=sum_dim)
+    sets_sum = input.sum(dim=sum_dim) + target.sum(dim=sum_dim)
+    sets_sum = torch.where(sets_sum == 0, inter, sets_sum)
+
+    dice = (inter + epsilon) / (sets_sum + epsilon)
+    return dice.mean()
